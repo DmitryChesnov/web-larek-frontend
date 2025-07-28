@@ -1,8 +1,15 @@
 import { Component } from '../base/Component';
 import { EventEmitter } from '../base/EventEmitter';
-import { IOrderForm } from '../../types';
+import { ensureElement } from '../../utils/utils';
 
-export class OrderForm extends Component<IOrderForm> {
+interface IOrderFormData {
+	payment: string;
+	address: string;
+	valid?: boolean;
+	errors?: string;
+}
+
+export class OrderForm extends Component<IOrderFormData> {
 	protected _buttons: HTMLButtonElement[];
 	protected _address: HTMLInputElement;
 	protected _errors: HTMLElement;
@@ -12,49 +19,44 @@ export class OrderForm extends Component<IOrderForm> {
 		super(container);
 
 		this._buttons = Array.from(container.querySelectorAll('.button_alt'));
-		this._address = container.querySelector(
-			'input[name="address"]'
-		) as HTMLInputElement;
-		this._errors = container.querySelector('.form__errors') as HTMLElement;
-		this._submit = container.querySelector(
-			'button[type="submit"]'
-		) as HTMLButtonElement;
+		this._address = ensureElement<HTMLInputElement>(
+			'input[name="address"]',
+			container
+		);
+		this._errors = ensureElement<HTMLElement>('.form__errors', container);
+		this._submit = ensureElement<HTMLButtonElement>(
+			'button[type="submit"]',
+			container
+		);
 
-		if (this._buttons) {
-			this._buttons.forEach((button) => {
-				button.addEventListener('click', () => {
-					this.payment = button.name;
-					this.events.emit('order.payment:change', { payment: button.name });
-				});
+		this._buttons.forEach((button) => {
+			button.addEventListener('click', () => {
+				this.payment = button.name;
+				events.emit('order.payment:change', { payment: button.name });
+				this.validate();
 			});
-		}
+		});
 
-		if (this._address) {
-			this._address.addEventListener('input', () => {
-				this.events.emit('order.address:change', {
-					address: this._address.value,
-				});
-			});
-		}
+		this._address.addEventListener('input', () => {
+			events.emit('order.address:change', { address: this._address.value });
+			this.validate();
+		});
 
-		if (this.container) {
-			this.container.addEventListener('submit', (e) => {
-				e.preventDefault();
-				this.events.emit('contacts:open');
-			});
-		}
+		container.addEventListener('submit', (e) => {
+			e.preventDefault();
+			if (this._submit.disabled) return;
+			events.emit('contacts:open');
+		});
 	}
 
 	set payment(value: string) {
 		this._buttons.forEach((button) => {
 			button.classList.toggle('button_alt-active', button.name === value);
 		});
-		this.validate();
 	}
 
 	set address(value: string) {
 		this._address.value = value;
-		this.validate();
 	}
 
 	set errors(value: string) {
@@ -65,23 +67,30 @@ export class OrderForm extends Component<IOrderForm> {
 		this._submit.disabled = !value;
 	}
 
-	private validate() {
-		const errors: string[] = [];
-		if (!this._address.value) errors.push('Укажите адрес доставки');
-		if (
-			!this._buttons.some((button) =>
-				button.classList.contains('button_alt-active')
-			)
-		) {
-			errors.push('Выберите способ оплаты');
-		}
-		this.errors = errors.join(', ');
-		this.valid = errors.length === 0;
+	render(data: IOrderFormData): HTMLElement {
+		if (data.payment) this.payment = data.payment;
+		if (data.address) this.address = data.address;
+		if (data.errors) this.errors = data.errors;
+		if (data.valid !== undefined) this.valid = data.valid;
+		return this.container;
 	}
 
-	render(data: Partial<IOrderForm>): HTMLElement {
-		this.payment = data.payment || '';
-		this.address = data.address || '';
-		return this.container;
+	private validate() {
+		const errors: string[] = [];
+
+		if (!this._address.value.trim()) {
+			errors.push('Укажите адрес доставки');
+		}
+
+		const paymentSelected = this._buttons.some((button) =>
+			button.classList.contains('button_alt-active')
+		);
+
+		if (!paymentSelected) {
+			errors.push('Выберите способ оплаты');
+		}
+
+		this.errors = errors.join('; ');
+		this.valid = errors.length === 0;
 	}
 }

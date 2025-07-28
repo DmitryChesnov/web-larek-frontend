@@ -1,27 +1,37 @@
-import { Component } from "../base/Component";
-import { ISuccess } from "../../types";
+import { Component } from '../base/Component';
+import { ISuccess } from '../../types';
+import { ensureElement } from '../../utils/utils';
 
 interface ISuccessActions {
-  onClick: () => void;
+	onClick: () => void;
 }
 
 export class Success extends Component<ISuccess> {
-  protected _close: HTMLButtonElement;
+	protected _close: HTMLButtonElement;
+	protected _description: HTMLElement;
 
-  constructor(container: HTMLElement, actions?: ISuccessActions) {
-    super(container);
+	constructor(container: HTMLElement, actions?: ISuccessActions) {
+		super(container);
 
-    this._close = container.querySelector('.order-success__close');
-    if (actions?.onClick) {
-      this._close.addEventListener('click', actions.onClick);
-    }
-  }
+		this._close = ensureElement<HTMLButtonElement>(
+			'.order-success__close',
+			container
+		);
+		this._description = ensureElement<HTMLElement>(
+			'.order-success__description',
+			container
+		);
 
-  render(data: ISuccess) {
-    const totalElement = this.container.querySelector('.order-success__description');
-    if (totalElement) {
-      totalElement.textContent = `Списано ${data.total} синапсов`;
-    }
-    return this.container;
-  }
+		if (actions?.onClick) {
+			this._close.addEventListener('click', actions.onClick);
+		}
+	}
+
+	render(data: ISuccess): HTMLElement {
+		this.setText(
+			this._description,
+			data.description || `Списано ${data.total} синапсов`
+		);
+		return this.container;
+	}
 }

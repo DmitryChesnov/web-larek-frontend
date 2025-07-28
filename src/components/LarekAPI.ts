@@ -9,12 +9,12 @@ export class LarekAPI {
 
 	async getProductList(): Promise<IProduct[]> {
 		try {
-			const response = await fetch(`${this.baseUrl}/products`);
+			const response = await fetch(`${this.baseUrl}/product`);
 			if (!response.ok) {
 				throw new Error(`HTTP error! status: ${response.status}`);
 			}
 			const data = await response.json();
-			 console.log('API response:', data);
+			console.log('API response:', data);
 			return data.items.map((item: any) => ({
 				id: item.id,
 				title: item.title,
@@ -31,7 +31,7 @@ export class LarekAPI {
 
 	async orderProducts(order: IOrder): Promise<{ id: string }> {
 		try {
-			const response = await fetch(`${this.baseUrl}/orders`, {
+			const response = await fetch(`${this.baseUrl}/order`, {
 				method: 'POST',
 				headers: { 'Content-Type': 'application/json' },
 				body: JSON.stringify({

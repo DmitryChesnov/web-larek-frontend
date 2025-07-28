@@ -95,20 +95,14 @@ export interface IFormState {
 }
 
 export interface ISuccess {
-	description: number;
-	total: number;
+    description?: string;
+    total: number;
 }
-
 // API клиент
 export interface ILarekAPI {
 	getProductList: () => Promise<IProduct[]>;
 	getProductItem: (id: string) => Promise<IProduct>;
 	orderProducts: (order: IOrder) => Promise<IOrder>;
-}
-
-export interface ISuccess {
-	description: number;
-	total: number;
 }
 
 // Перечисление событий
