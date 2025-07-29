@@ -16,6 +16,7 @@ export class AppState {
 	constructor(private events: EventEmitter) {
 		this.loadBasket();
 		this.registerEventHandlers();
+		this.events.emit('basket:changed');
 	}
 
 	private registerEventHandlers(): void {

@@ -2,31 +2,52 @@ import { Component } from './base/Component';
 import { EventEmitter } from './base/EventEmitter';
 
 interface IPage {
-	counter: number;
-	catalog: HTMLElement[];
-	locked: boolean;
+    counter: number;
+    catalog: HTMLElement[];
+    locked: boolean;
 }
 
 export class Page extends Component<IPage> {
-	constructor(container: HTMLElement, protected events: EventEmitter) {
-		super(container);
-	}
+    protected _counter: number = 0;
 
-	set counter(value: number) {
-		const element = this.container.querySelector('.header__basket-counter');
-		if (element) element.textContent = String(value);
-	}
+    constructor(container: HTMLElement, protected events: EventEmitter) {
+        super(container);
 
-	set catalog(items: HTMLElement[]) {
-		const gallery = this.container.querySelector('.gallery');
-		if (gallery) gallery.replaceChildren(...items);
-	}
+        // Добавляем обработчик сразу при создании
+        this.events.on('basket:changed', () => {
+            this.updateCounter();
+        });
+    }
 
-	set locked(value: boolean) {
-		this.container.classList.toggle('page__wrapper_locked', value);
-	}
+    private updateCounter() {
+        const counterElement = this.container.querySelector('.header__basket-counter');
+        if (counterElement) {
+            counterElement.textContent = String(this._counter);
+        }
+    }
 
-	render(): HTMLElement {
-		return this.container;
-	}
+    set counter(value: number) {
+        this._counter = value;
+        this.updateCounter(); // Обновляем отображение при изменении
+    }
+
+    set catalog(items: HTMLElement[]) {
+        const gallery = this.container.querySelector('.gallery');
+        if (gallery) {
+            gallery.replaceChildren(...items);
+        }
+    }
+
+    set locked(value: boolean) {
+        this.container.classList.toggle('page__wrapper_locked', value);
+    }
+
+    render(data?: IPage): HTMLElement {
+        if (data) {
+            if (data.counter !== undefined) this.counter = data.counter;
+            if (data.catalog !== undefined) this.catalog = data.catalog;
+            if (data.locked !== undefined) this.locked = data.locked;
+        }
+        return this.container;
+    }
 }
