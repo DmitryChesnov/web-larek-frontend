@@ -88,6 +88,11 @@ export interface IBasketView {
 	items: HTMLElement[];
 	total: number;
 }
+export interface IBasketUpdate {
+	items: IProduct[];
+	count: number;
+	total: number;
+}
 
 export interface IFormState {
 	valid: boolean;
@@ -95,8 +100,8 @@ export interface IFormState {
 }
 
 export interface ISuccess {
-    description?: string;
-    total: number;
+	description?: string;
+	total: number;
 }
 // API клиент
 export interface ILarekAPI {

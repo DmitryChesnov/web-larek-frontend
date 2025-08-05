@@ -37,8 +37,14 @@ export class LarekAPI {
 				body: JSON.stringify({
 					...order,
 					items: order.items.map((id) => ({ id })),
+					payment: 'online',
+					email: 'test@test.ru',
+					phone: '+71234567890',
+					address: 'Spb Vosstania 1',
+					total: order.items.length,
 				}),
 			});
+			console.log(response);
 			if (!response.ok) {
 				throw new Error(`HTTP error! status: ${response.status}`);
 			}

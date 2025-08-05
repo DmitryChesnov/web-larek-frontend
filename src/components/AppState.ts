@@ -1,5 +1,13 @@
 import { EventEmitter } from './base/EventEmitter';
-import { IProduct, IOrderForm, IOrder } from '../types';
+import {
+	IProduct,
+	IOrderForm,
+	IOrder,
+	IFormErrors,
+	IBasketUpdate,
+} from '../types';
+import { LarekAPI } from './LarekAPI';
+import { API_URL, CDN_URL } from '../utils/constants';
 
 export class AppState {
 	private _catalog: IProduct[] = [];
@@ -11,17 +19,59 @@ export class AppState {
 		phone: '',
 	};
 	private _preview: string | null = null;
-	private _formErrors: Partial<Record<keyof IOrderForm, string>> = {};
+	private _formErrors: IFormErrors = {};
 
 	constructor(private events: EventEmitter) {
-		this.loadBasket();
+		this._basket = this.loadBasket();
+		this.emitBasketUpdate();
 		this.registerEventHandlers();
-		this.events.emit('basket:changed');
+	}
+
+	public addToBasket(item: IProduct): void {
+		if (!this._basket.some((it) => it.id === item.id)) {
+			this._basket.push(item);
+			this.updateBasket();
+		}
+	}
+
+	public removeFromBasket(id: string): void {
+		this._basket = this._basket.filter((item) => item.id !== id);
+		this.updateBasket();
+	}
+
+	public clearBasket(): void {
+		this._basket = [];
+		localStorage.removeItem('basket');
+		this.emitBasketUpdate();
+	}
+
+	private loadBasket(): IProduct[] {
+		try {
+			const saved = localStorage.getItem('basket');
+			return saved ? JSON.parse(saved) : [];
+		} catch (e) {
+			console.error('Ошибка загрузки корзины:', e);
+			localStorage.removeItem('basket');
+			return [];
+		}
+	}
+
+	private saveBasket(): void {
+		localStorage.setItem('basket', JSON.stringify(this._basket));
+	}
+
+	private emitBasketUpdate(): void {
+		this.events.emit('basket:updated', {
+			items: [...this._basket],
+			count: this._basket.length,
+			total: this.getTotal(),
+		} as IBasketUpdate);
 	}
 
 	private registerEventHandlers(): void {
 		this.events.on('card:add', (item: IProduct) => this.addToBasket(item));
 		this.events.on('card:remove', (id: string) => this.removeFromBasket(id));
+		this.events.on('order:submit', () => this.submitOrder());
 
 		this.events.on('order.payment:change', (data: { payment: string }) => {
 			this._order.payment = data.payment;
@@ -44,16 +94,26 @@ export class AppState {
 		});
 	}
 
+	private async submitOrder(): Promise<void> {
+		try {
+			const order = this.prepareOrder();
+			const api = new LarekAPI(API_URL, CDN_URL);
+			await api.orderProducts(order);
+			this.clearBasket();
+			this.events.emit('order:success', { total: order.total });
+		} catch (error) {
+			console.error('Ошибка оформления заказа:', error);
+			this.events.emit('formErrors:change', {
+				order: 'Ошибка при оформлении заказа',
+			});
+		}
+	}
+
 	private validateOrder(): void {
-		const errors: Partial<Record<keyof IOrderForm, string>> = {};
+		const errors: IFormErrors = {};
 
-		if (!this._order.payment) {
-			errors.payment = 'Выберите способ оплаты';
-		}
-
-		if (!this._order.address) {
-			errors.address = 'Введите адрес доставки';
-		}
+		if (!this._order.payment) errors.payment = 'Выберите способ оплаты';
+		if (!this._order.address) errors.address = 'Введите адрес доставки';
 
 		if (!this._order.email) {
 			errors.email = 'Введите email';
@@ -68,27 +128,29 @@ export class AppState {
 		}
 
 		this._formErrors = errors;
-		this.events.emit('formErrors:change', this._formErrors);
+		this.events.emit('formErrors:change', errors);
+		    this.events.emit('contacts:validation', {
+        valid: !errors.email && !errors.phone,
+        errors
+    });
 	}
 
-	private loadBasket(): void {
-		const saved = localStorage.getItem('basket');
-		if (saved) {
-			try {
-				this._basket = JSON.parse(saved);
-				this.events.emit('basket:changed');
-			} catch (e) {
-				console.error('Failed to parse saved basket', e);
-				localStorage.removeItem('basket');
-			}
-		}
+	private updateBasket(): void {
+		this.saveBasket();
+		this.emitBasketUpdate();
 	}
 
-	private saveBasket(): void {
-		localStorage.setItem('basket', JSON.stringify(this._basket));
+	private validateEmail(email: string): boolean {
+		const re = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+		return re.test(email);
 	}
 
-	prepareOrder(): IOrder {
+	private validatePhone(phone: string): boolean {
+		const re = /^\+?[\d\s\-\(\)]{10,}$/;
+		return re.test(phone);
+	}
+
+	public prepareOrder(): IOrder {
 		if (!this._order.email || !this._order.phone) {
 			throw new Error('Не заполнены контактные данные');
 		}
@@ -100,7 +162,7 @@ export class AppState {
 		};
 	}
 
-	resetOrderForm(): void {
+	public resetOrderForm(): void {
 		this._order = {
 			payment: '',
 			address: '',
@@ -111,74 +173,36 @@ export class AppState {
 		this.events.emit('formErrors:change', this._formErrors);
 	}
 
-	get catalog(): IProduct[] {
+	public getTotal(): number {
+		return this._basket.reduce((total, item) => total + (item.price || 0), 0);
+	}
+
+	// Getters
+	public get catalog(): IProduct[] {
 		return this._catalog;
 	}
-
-	get basket(): IProduct[] {
+	public get basket(): IProduct[] {
 		return this._basket;
 	}
-
-	get order(): IOrderForm {
+	public get order(): IOrderForm {
 		return this._order;
 	}
-
-	get preview(): string | null {
+	public get preview(): string | null {
 		return this._preview;
 	}
-
-	get formErrors(): Partial<Record<keyof IOrderForm, string>> {
+	public get formErrors(): IFormErrors {
 		return this._formErrors;
 	}
 
-	setCatalog(items: IProduct[]): void {
+	// Setters
+	public setCatalog(items: IProduct[]): void {
 		this._catalog = items;
 		this.events.emit('catalog:changed');
 	}
 
-	setPreview(id: string): void {
+	public setPreview(id: string): void {
 		this._preview = id;
 		const product = this._catalog.find((item) => item.id === id);
-		if (product) {
-			this.events.emit('preview:changed', product);
-		}
-	}
-
-	addToBasket(item: IProduct): void {
-		if (!this._basket.some((it) => it.id === item.id)) {
-			this._basket.push(item);
-			this.updateBasket();
-		}
-	}
-
-	removeFromBasket(id: string): void {
-		this._basket = this._basket.filter((item) => item.id !== id);
-		this.updateBasket();
-	}
-
-	clearBasket(): void {
-		this._basket = [];
-		this.updateBasket();
-		localStorage.removeItem('basket');
-	}
-
-	private updateBasket(): void {
-		this.events.emit('basket:changed');
-		this.validateOrder();
-		this.saveBasket();
-	}
-
-	getTotal(): number {
-		return this._basket.reduce((total, item) => total + (item.price || 0), 0);
-	}
-
-	private validateEmail(email: string): boolean {
-		const re = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-		return re.test(email);
-	}
-
-	private validatePhone(phone: string): boolean {
-		const re = /^\+?[\d\s\-\(\)]{10,}$/;
-		return re.test(phone);
+		if (product) this.events.emit('preview:changed', product);
 	}
 }
